@@ -7,7 +7,7 @@ require 'recipe/laravel.php';
 set('application', 'zero_downtime_deploy');
 
 // Project repository
-set('repository', 'git@github.com:training-auto-deploy/laravel-application.git');
+set('repository', '');
 
 // [Optional] Allocate tty for git clone. Default value is false.
 set('git_tty', false);
@@ -20,12 +20,17 @@ add('shared_dirs', []);
 add('writable_dirs', []);
 
 // Hosts
-host('10.0.4.18')
+host('IP_SERVER')
     ->user('deploy')
     ->stage('staging')
     ->set('deploy_path', '~/{{application}}');
 
 // Tasks
+task('setup-laravel', function () {
+    run('cd {{release_path}} && cp .env.example {{deploy_path}}/shared/.env');
+    run('cd {{release_path}} && php artisan key:generate');
+});
+
 task('reload:php-fpm', function () {
     run('sudo /etc/init.d/php7.2-fpm reload');
 });
@@ -38,6 +43,20 @@ task('yarn:run:production', function () {
     run('cd {{release_path}} && yarn run production');
 });
 
+desc('Init project');
+task('init-project', [
+    'deploy:info',
+    'deploy:prepare',
+    'deploy:lock',
+    'deploy:release',
+    'deploy:update_code',
+    'deploy:shared',
+    'deploy:vendors',
+    'deploy:writable',
+    'setup-laravel',
+    'deploy:symlink',
+    'deploy:unlock',
+]);
 
 desc('Deploy your project');
 task('deploy', [
@@ -55,6 +74,7 @@ task('deploy', [
     'artisan:optimize',
     'deploy:symlink',
     'deploy:unlock',
+    'artisan:migrate',
     'cleanup',
     'reload:php-fpm',
     'yarn:install',
@@ -65,6 +85,4 @@ task('deploy', [
 after('deploy:failed', 'deploy:unlock');
 
 // Migrate database before symlink new release.
-
-before('deploy:symlink', 'artisan:migrate');
 desc('Deployed successfully!');
